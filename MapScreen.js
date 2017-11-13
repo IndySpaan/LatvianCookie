@@ -3,14 +3,12 @@ import {
   StyleSheet,
   Text,
   View,
-  TextInput,
-  TouchableOpacity
+  TextInput
 } from 'react-native';
 import { Actions } from 'react-native-router-flux'; // New code
-import { TextField } from 'react-native-material-textfield';
 
 
-class RouteScreen extends Component {
+class MapScreen extends Component {
   constructor(props) {
     super(props);
     this.state = {text: '',};
@@ -20,19 +18,7 @@ class RouteScreen extends Component {
     let {text} = this.state;
     return (
       <View style={styles.container}>
-        <TextInput
-          value={text}
-          placeholder={'Input the distance to run.'}
-          onChangeText={(text) => this.setState({text})}
-          style={styles.input}
-        />
-        <TouchableOpacity onPress={() => Actions.mapScreen()}>
-            <Text
-              style={styles.buttonText}
-            >
-              Generate a new route!
-            </Text>
-        </TouchableOpacity>
+        <Text>Mapscreen</Text>
       </View>
     );
   }
@@ -41,7 +27,7 @@ class RouteScreen extends Component {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#3498db',
+    backgroundColor: '#fff',
   },
   welcome: {
     fontSize: 20,
@@ -56,11 +42,9 @@ const styles = StyleSheet.create({
     color: '#FFF',
     marginHorizontal: 20,
     marginTop: 10
-  },
-  buttonText: {
-    fontSize: 20,
-    textAlign: 'center'
+
+
   }
 });
 
-export default RouteScreen;
+export default MapScreen;
