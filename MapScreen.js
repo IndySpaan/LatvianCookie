@@ -8,6 +8,7 @@ import {
 } from 'react-native';
 import { Actions } from 'react-native-router-flux'; // New code
 import MapView from 'react-native-maps';
+import Polyline from '@mapbox/polyline';
 
 const StartLocation = {
     latitude: 51.441642,
@@ -16,19 +17,84 @@ const StartLocation = {
     longitudeDelta: 0.0055,
 };
 
+const SecondLocation = {
+  latitude: 51.435821,
+  longitude: 5.479430,
+  latitudeDelta: 0.0055,
+  longitudeDelta: 0.0055,
+};
+
 class MapScreen extends Component {
   constructor(props) {
     super(props);
     this.state = {
-        currentRoutePoints: []
+        currentRoutePoints: [],
+        coords: []
     };
   }
   
   componentDidMount() {
     const refMap = this.refs.googleMap;
+    
+    console.debug(this.getDirections(StartLocation, SecondLocation));
 
-    console.debug(refMap);
+  }
 
+  Init() {
+    const myOptions = {
+      zoom: 17,
+      center: new google.maps.LatLng(37.2008385157313, -93.2812106609344),
+      mapTypeId: google.maps.MapTypeId.HYBRID,
+      mapTypeControlOptions: {
+        mapTypeIds: [google.maps.MapTypeId.ROADMAP, google.maps.MapTypeId.HYBRID,
+            google.maps.MapTypeId.SATELLITE]
+      },
+      disableDoubleClickZoom: true,
+      scrollwheel: false,
+      draggableCursor: "crosshair"
+    }
+  
+    const map = new google.maps.Map(document.getElementById("map_canvas"), myOptions);
+    const poly = new google.maps.Polyline({ map: map });
+    google.maps.event.addListener(map, "click", function(evt) {
+      if (path.getLength() === 0) {
+        path.push(evt.latLng);
+        poly.setPath(path);
+      } else {
+        service.route({
+          origin: path.getAt(path.getLength() - 1),
+          destination: evt.latLng,
+          travelMode: google.maps.DirectionsTravelMode.DRIVING
+        }, function(result, status) {
+          if (status == google.maps.DirectionsStatus.OK) {
+            for (var i = 0, len = result.routes[0].overview_path.length;
+                i < len; i++) {
+              path.push(result.routes[0].overview_path[i]);
+            }
+          }
+        });
+      }
+    });
+  }
+
+  
+  async getDirections(startLoc, destinationLoc) {
+    try {
+        let resp = await fetch(`https://maps.googleapis.com/maps/api/directions/json?origin=${ startLoc.latitude + ',' + startLoc.longitude }&destination=${ destinationLoc.latitude + ',' + destinationLoc.longitude }`)
+        let respJson = await resp.json();
+        let points = Polyline.decode(respJson.routes[0].overview_polyline.points);
+        let coords = points.map((point, index) => {
+            return  {
+                latitude : point[0],
+                longitude : point[1]
+            }
+        })
+        this.setState({coords: coords})
+        return coords
+    } catch(error) {
+        alert(error)
+        return error
+    }
   }
 
   generateRoute(length) {
@@ -92,13 +158,21 @@ class MapScreen extends Component {
         >
         <MapView.Circle
             center={{latitude: StartLocation.latitude, longitude: StartLocation.longitude}}
-            radius={1000}
+            radius={1500}
             fillColor="rgba(0, 0, 0, 0.2)"
             strokeColor="rgba(0, 0, 0, 0.2)"/>
         <MapView.Marker
             coordinate={{latitude: StartLocation.latitude, longitude: StartLocation.longitude}}
             title={"TEST MARKER"}
         />
+        <MapView.Marker
+            coordinate={{latitude: SecondLocation.latitude, longitude: SecondLocation.longitude}}
+            title={"SECOND MARKER"}
+        />
+        <MapView.Polyline 
+            coordinates={this.state.coords}
+            strokeWidth={2}
+            strokeColor="red"/>
         </MapView>
       </View>
     );
