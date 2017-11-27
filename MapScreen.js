@@ -4,11 +4,20 @@ import {
   Text,
   View,
   TextInput,
-  Animated
+  Animated,
+  Dimensions
 } from 'react-native';
 import { Actions } from 'react-native-router-flux'; // New code
 import MapView from 'react-native-maps';
 import Polyline from '@mapbox/polyline';
+
+const {width, height} = Dimensions.get('window')
+
+const SCREEN_HEIGHT = height
+const SCREEN_WIDTH = width
+const ASPECT_RATIO = width / height
+const LATITUDE_DELTA = 0.0922
+const LONGITUDE_DELTA = LATITUDE_DELTA * ASPECT_RATIO
 
 const StartLocation = {
     latitude: 51.441642,
@@ -29,21 +38,65 @@ class MapScreen extends Component {
     super(props);
     this.state = {
         currentRoutePoints: [],
-        coords: []
+        coords: [],
+        initialPosition: {
+          latitude: 0,
+          latitudeDelta: 0,
+          longitude: 0,
+          longitudeDelta: 0
+        }
     };
   }
-  
+
+  watchID: ?number = null
+
   componentDidMount() {
     const refMap = this.refs.googleMap;
-    
-    console.debug(this.getDirections(StartLocation, SecondLocation));
+    console.debug(this.getDirections(this.state.initialPosition, SecondLocation));
 
+    navigator.geolocation.getCurrentPosition((position) => {
+      var lat = parseFloat(position.coords.latitude)
+      var long = parseFloat(position.coords.longitude)
+
+      var initialRegion = {
+        latitude: lat,
+        longitude: long,
+        latitudeDelta: LATITUDE_DELTA,
+        longitudeDelta: LONGITUDE_DELTA
+      }
+
+      this.setState({initialPosition: initialRegion});
+
+    }, (error) => alert(JSON.stringify(error)),
+    {enableHighAccuracy: true, timeout: 20000, maximumAge: 1000})
+
+    this.watchID = navigator.geolocation.watchPosition((position) => {
+      var lat = parseFloat(position.coords.latitude)
+      var long = parseFloat(position.coords.longitude)
+
+      var lastRegion = {
+        latitude: lat,
+        longitude: long,
+        longitudeDelta: LONGITUDE_DELTA,
+        latitudeDelta: LATITUDE_DELTA
+      }
+
+      this.setState({initialPosition:lastRegion})
+
+
+    });
+
+  }
+
+  componentWillUnmount() {
+    navigator.geolocation.clearWatch(this.watchID);
   }
 
   Init() {
+    const { initialPosition } = this.state;
     const myOptions = {
       zoom: 17,
-      center: new google.maps.LatLng(37.2008385157313, -93.2812106609344),
+      center: new google.maps.LatLng(initialPosition),
       mapTypeId: google.maps.MapTypeId.HYBRID,
       mapTypeControlOptions: {
         mapTypeIds: [google.maps.MapTypeId.ROADMAP, google.maps.MapTypeId.HYBRID,
@@ -53,7 +106,7 @@ class MapScreen extends Component {
       scrollwheel: false,
       draggableCursor: "crosshair"
     }
-  
+
     const map = new google.maps.Map(document.getElementById("map_canvas"), myOptions);
     const poly = new google.maps.Polyline({ map: map });
     google.maps.event.addListener(map, "click", function(evt) {
@@ -77,7 +130,7 @@ class MapScreen extends Component {
     });
   }
 
-  
+
   async getDirections(startLoc, destinationLoc) {
     try {
         let resp = await fetch(`https://maps.googleapis.com/maps/api/directions/json?origin=${ startLoc.latitude + ',' + startLoc.longitude }&destination=${ destinationLoc.latitude + ',' + destinationLoc.longitude }`)
@@ -98,19 +151,19 @@ class MapScreen extends Component {
   }
 
   generateRoute(length) {
-    
+
       //How far is it to your fixed point?
       var distToFixed = computeDistanceBetween(BaseLocation,fixedPoints[0].marker.getPosition());
-    
+
       if(distToFixed/requestedLengthInMeters > 0.5)
         {
           alert("The distance requested is less than half the straight line distance to the fixed waypoint.  No way to close a route.");
         }
-    
+
       else
         {
           var brngToFixed = getBearing(BaseLocation,fixedPoints[0].marker.getPosition());
-          /* Now, choose a direction in which to head, and go the distance such that the sum of the 3 legs 
+          /* Now, choose a direction in which to head, and go the distance such that the sum of the 3 legs
          (base to fixed, fixed to next, next to base) add up to the desired distance, length. */
           var minTurn = 20;  var maxTurn = 160;
           var direction = Math.random()* (maxTurn-minTurn) + minTurn;
@@ -127,49 +180,41 @@ class MapScreen extends Component {
           toHere = getNewPointAlongBearing(fixedPoints[0].marker.getPosition(),step,newBearing);
           allLegs = distToFixed + computeDistanceBetween(fixedPoints[0].marker.getPosition(),toHere) + computeDistanceBetween(toHere,BaseLocation);
         }
-    
+
           var newBearing2 = newBearing + (1-side*2)*5*Math.PI/180;
           var toHere2 = getNewPointAlongBearing(fixedPoints[0].marker.getPosition(),step,newBearing2);
-    
+
           /*
           placeMarker(toHere,"");
           new google.maps.Polyline({path:[BaseLocation,fixedPoints[0].marker.getPosition()],map:map});
           new google.maps.Polyline({path:[fixedPoints[0].marker.getPosition(),toHere],map:map});
           new google.maps.Polyline({path:[toHere,BaseLocation],map:map});
           */
-          
+
           rlPoints.length=0;
           rlPoints.push(fixedPoints[0].marker.getPosition());
           rlPoints.push(toHere);
           rlPoints.push(toHere2);
         }
-    
+
       return;
     }
 
   render() {
+    const { initialPosition } = this.state;
 
     return (
       <View style={styles.container}>
         <MapView
             style={styles.map}
-            initialRegion={StartLocation}
+            region={initialPosition}
             ref='googleMap'
         >
-        <MapView.Circle
-            center={{latitude: StartLocation.latitude, longitude: StartLocation.longitude}}
-            radius={1500}
-            fillColor="rgba(0, 0, 0, 0.2)"
-            strokeColor="rgba(0, 0, 0, 0.2)"/>
         <MapView.Marker
-            coordinate={{latitude: StartLocation.latitude, longitude: StartLocation.longitude}}
-            title={"TEST MARKER"}
+            coordinate={{latitude: initialPosition.latitude, longitude: initialPosition.longitude}}
+            title={"Hi This is you!"}
         />
-        <MapView.Marker
-            coordinate={{latitude: SecondLocation.latitude, longitude: SecondLocation.longitude}}
-            title={"SECOND MARKER"}
-        />
-        <MapView.Polyline 
+        <MapView.Polyline
             coordinates={this.state.coords}
             strokeWidth={2}
             strokeColor="red"/>
