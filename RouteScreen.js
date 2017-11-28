@@ -16,6 +16,12 @@ class RouteScreen extends Component {
     this.state = {text: '',};
   }
 
+  componentWillUpdate() {
+    const { text } = this.state;
+    console.debug('Text / value in texbox is : ' + text);
+  }
+
+
   render() {
     let {text} = this.state;
     return (
@@ -25,6 +31,7 @@ class RouteScreen extends Component {
           placeholder={'Input the distance to run.'}
           onChangeText={(text) => this.setState({text})}
           style={styles.input}
+          keyboardType={'numeric'}
         />
         <TouchableOpacity onPress={() => Actions.mapScreen()}>
             <Text

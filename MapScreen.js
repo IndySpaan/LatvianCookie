@@ -19,19 +19,6 @@ const ASPECT_RATIO = width / height
 const LATITUDE_DELTA = 0.0922
 const LONGITUDE_DELTA = LATITUDE_DELTA * ASPECT_RATIO
 
-const StartLocation = {
-    latitude: 51.441642,
-    longitude: 5.4697225,
-    latitudeDelta: 0.0055,
-    longitudeDelta: 0.0055,
-};
-
-const SecondLocation = {
-  latitude: 51.435821,
-  longitude: 5.479430,
-  latitudeDelta: 0.0055,
-  longitudeDelta: 0.0055,
-};
 
 class MapScreen extends Component {
   constructor(props) {
@@ -52,7 +39,6 @@ class MapScreen extends Component {
 
   componentDidMount() {
     const refMap = this.refs.googleMap;
-    console.debug(this.getDirections(this.state.initialPosition, SecondLocation));
 
     navigator.geolocation.getCurrentPosition((position) => {
       var lat = parseFloat(position.coords.latitude)
@@ -68,7 +54,7 @@ class MapScreen extends Component {
       this.setState({initialPosition: initialRegion});
 
     }, (error) => alert(JSON.stringify(error)),
-    {enableHighAccuracy: true, timeout: 20000, maximumAge: 1000})
+    {enableHighAccuracy: true, timeout: 200000, maximumAge: 1000})
 
     this.watchID = navigator.geolocation.watchPosition((position) => {
       var lat = parseFloat(position.coords.latitude)
@@ -82,7 +68,8 @@ class MapScreen extends Component {
       }
 
       this.setState({initialPosition:lastRegion})
-
+      // this.getDirections(lastRegion, SecondLocation);
+      this.drawPointsTest(this.circleRoute(10000));
 
     });
 
@@ -130,9 +117,23 @@ class MapScreen extends Component {
     });
   }
 
+  drawPointsTest(points) {
+    const { initialPosition } = this.state;
+    let coords = points.map((point, index) => {
+      return  {
+          latitude : point.latitude + point.latitudeDelta,
+          longitude : point.longitude + point.longitudeDelta
+      }
+    })
+    coords.splice(0, 0, initialPosition);
+    coords.push(initialPosition);
+    this.setState({coords: coords});
+  }
+
 
   async getDirections(startLoc, destinationLoc) {
     try {
+        console.debug(startLoc);
         let resp = await fetch(`https://maps.googleapis.com/maps/api/directions/json?origin=${ startLoc.latitude + ',' + startLoc.longitude }&destination=${ destinationLoc.latitude + ',' + destinationLoc.longitude }`)
         let respJson = await resp.json();
         let points = Polyline.decode(respJson.routes[0].overview_polyline.points);
@@ -143,6 +144,7 @@ class MapScreen extends Component {
             }
         })
         this.setState({coords: coords})
+        console.log(coords);
         return coords
     } catch(error) {
         alert(error)
@@ -150,55 +152,54 @@ class MapScreen extends Component {
     }
   }
 
-  generateRoute(length) {
-
-      //How far is it to your fixed point?
-      var distToFixed = computeDistanceBetween(BaseLocation,fixedPoints[0].marker.getPosition());
-
-      if(distToFixed/requestedLengthInMeters > 0.5)
-        {
-          alert("The distance requested is less than half the straight line distance to the fixed waypoint.  No way to close a route.");
-        }
-
-      else
-        {
-          var brngToFixed = getBearing(BaseLocation,fixedPoints[0].marker.getPosition());
-          /* Now, choose a direction in which to head, and go the distance such that the sum of the 3 legs
-         (base to fixed, fixed to next, next to base) add up to the desired distance, length. */
-          var minTurn = 20;  var maxTurn = 160;
-          var direction = Math.random()* (maxTurn-minTurn) + minTurn;
-          var side = Math.floor(2*Math.random());
-          if(side==0) direction = direction;
-          if(side==1) direction = -1* direction;
-          var newBearing = brngToFixed + direction * Math.PI/180;
-          var step = 0;
-          var toHere;
-          var allLegs = 0;
-          while(allLegs < length)
-        {
-          step += 1;  //Move out in steps of 1 meter.
-          toHere = getNewPointAlongBearing(fixedPoints[0].marker.getPosition(),step,newBearing);
-          allLegs = distToFixed + computeDistanceBetween(fixedPoints[0].marker.getPosition(),toHere) + computeDistanceBetween(toHere,BaseLocation);
-        }
-
-          var newBearing2 = newBearing + (1-side*2)*5*Math.PI/180;
-          var toHere2 = getNewPointAlongBearing(fixedPoints[0].marker.getPosition(),step,newBearing2);
-
-          /*
-          placeMarker(toHere,"");
-          new google.maps.Polyline({path:[BaseLocation,fixedPoints[0].marker.getPosition()],map:map});
-          new google.maps.Polyline({path:[fixedPoints[0].marker.getPosition(),toHere],map:map});
-          new google.maps.Polyline({path:[toHere,BaseLocation],map:map});
-          */
-
-          rlPoints.length=0;
-          rlPoints.push(fixedPoints[0].marker.getPosition());
-          rlPoints.push(toHere);
-          rlPoints.push(toHere2);
-        }
-
-      return;
-    }
+  circleRoute(length)
+  {
+    const { initialPosition } = this.state;
+    //alert("Doing a circular route");
+    const mapPoints = [];
+    const radius = length/2/Math.PI;
+    //log ("The radius of the circle is " + radius);
+    const circlePoints = 4;
+    const deg = [];
+    const center = initialPosition;
+    //Choose a direction for this value
+    let direction = Math.random()*2*Math.PI;  //in radians
+    //log("The direction of this point with be at " + direction*180/Math.PI + " degrees.");
+  
+    //Locate the point that is radius meters away from the Base Location in the direction chosen.
+    //length assumed in meters, and then deltas in degrees.
+    let dx = radius*Math.cos(direction);
+    let dy = radius*Math.sin(direction);
+    let delta_lat = dy/110540;
+    let delta_lng = dx/(111320*Math.cos(initialPosition.latitude * Math.PI/180));
+    //log(" The center point will be at " + center);
+    //placeMarker(center,'Circle Center');
+  
+    //Find circlePoints other points to use
+    //First, call the initial direction direction+180, since we are looking in the opposite direction.
+    deg[0] = direction + Math.PI;
+    
+    let sign = -1;
+    for(let i=1;i<circlePoints+1;i++)
+      {
+        deg[i] = deg[i-1] + sign*2*Math.PI/(circlePoints+1);
+        dx = radius*Math.cos(deg[i]);
+        dy = radius*Math.sin(deg[i]);
+        delta_lat = dy/110540;
+        delta_lng = dx/(111320*Math.cos(initialPosition.latitude*Math.PI/180));
+        let mapObj = {
+          latitude: initialPosition.latitude,
+          latitudeDelta: delta_lat,
+          longitude : initialPosition.longitude,
+          longitudeDelta : delta_lng
+        };
+        // console.debug(new google.maps.LatLng(initialPosition.latitude+delta_lat,initialPosition.longitude+delta_lng));
+        mapPoints.push(mapObj);
+        //placeMarker(pts[i-1],'p'+i);
+      }
+      console.debug(mapPoints);
+      return mapPoints;
+  }
 
   render() {
     const { initialPosition } = this.state;
