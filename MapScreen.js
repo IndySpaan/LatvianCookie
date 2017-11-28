@@ -127,15 +127,32 @@ class MapScreen extends Component {
     })
     coords.splice(0, 0, initialPosition);
     coords.push(initialPosition);
+    this.getDirections(coords);
     this.setState({coords: coords});
   }
 
 
-  async getDirections(startLoc, destinationLoc) {
+  async getDirections(routepoints) {
+    let pathString = '';
+    for (let index = 0; index < routepoints.length; index++) {
+      const route = routepoints[index];
+      let newString = '';
+      if(index < routepoints.length - 1) {
+        newString = route.latitude + ',' + route.longitude + '|';
+      } else {
+        newString = route.latitude + ',' + route.longitude;
+      }
+      console.log(newString);
+      pathString = pathString + newString;
+    }
+    let path = {
+      path: pathString
+    };
+    console.log(path);
     try {
-        console.debug(startLoc);
-        let resp = await fetch(`https://maps.googleapis.com/maps/api/directions/json?origin=${ startLoc.latitude + ',' + startLoc.longitude }&destination=${ destinationLoc.latitude + ',' + destinationLoc.longitude }`)
+        let resp = await fetch(`https://roads.googleapis.com/v1/snapToRoads?path=${ path.path }&key=AIzaSyC2Bsi49dYdwoljZ5TzAeBz65qdiqsjPwk`)
         let respJson = await resp.json();
+        console.log(respJson);
         let points = Polyline.decode(respJson.routes[0].overview_polyline.points);
         let coords = points.map((point, index) => {
             return  {
@@ -143,7 +160,6 @@ class MapScreen extends Component {
                 longitude : point[1]
             }
         })
-        this.setState({coords: coords})
         console.log(coords);
         return coords
     } catch(error) {
